@@ -1,1 +1,142 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>SATRANÇ 3 - PRO</title>
+    <style>
+        :root { --bg: #312e2b; --sidebar: #262421; --board-shadow: #1b1918; --accent: #81b64c; }
+        body { background: var(--bg); color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; overflow: hidden; }
+        .container { display: flex; gap: 20px; padding: 20px; background: var(--board-shadow); border-radius: 8px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        
+        /* Tahta Alanı */
+        .board { display: grid; grid-template-columns: repeat(8, 70px); grid-template-rows: repeat(8, 70px); border: 5px solid #272522; position: relative; }
+        .square { width: 70px; height: 70px; display: flex; justify-content: center; align-items: center; font-size: 55px; position: relative; cursor: pointer; transition: background 0.1s; }
+        .white-sq { background-color: #dfc095; color: #8b5a2b; }
+        .black-sq { background-color: #8b5a2b; color: #dfc095; }
+        
+        /* Vurgular */
+        .selected { background-color: #bac141 !important; }
+        .dot { height: 20px; width: 20px; background-color: rgba(0,0,0,0.15); border-radius: 50%; pointer-events: none; }
+        
+        /* Yan Panel */
+        .sidebar { width: 280px; background: var(--sidebar); display: flex; flex-direction: column; border-radius: 4px; padding: 15px; }
+        .status-box { background: #21201d; padding: 15px; border-radius: 4px; border-left: 5px solid var(--accent); margin-bottom: 20px; }
+        .move-history { flex-grow: 1; overflow-y: auto; background: #1b1918; padding: 10px; font-size: 14px; border-radius: 4px; color: #bababa; }
+        .move-history h3 { color: #fff; margin-top: 0; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        
+        .piece { z-index: 10; user-select: none; }
+    </style>
+</head>
+<body>
 
+<div class="container">
+    <div>
+        <div class="board" id="board"></div>
+    </div>
+
+    <div class="sidebar">
+        <div class="status-box">
+            <div style="font-size: 12px; color: #81b64c; font-weight: bold;">TÜYK ANALİZ MOTORU</div>
+            <div id="status" style="font-size: 18px; margin-top: 5px;">Senin Sıran</div>
+        </div>
+        
+        <div class="move-history">
+            <h3>Hamle Geçmişi</h3>
+            <div id="pgn"></div>
+        </div>
+        
+        <div style="margin-top: 20px; font-size: 12px; color: #666; text-align: center;">
+            SATRANÇ 3 - v3.0.1 <br> TÜW & TÜYK İş Birliği
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script>
+    const game = new Chess();
+    const boardElement = document.getElementById('board');
+    const statusElement = document.getElementById('status');
+    const pgnElement = document.getElementById('pgn');
+    let selectedSquare = null;
+    let possibleMoves = [];
+
+    const pieces = { 'p': '♙', 'r': '♖', 'n': '♘', 'b': '♗', 'q': '♕', 'k': '♔', 'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔' };
+    const pieceIcons = {
+        'w': { 'p': '♙', 'r': '♖', 'n': '♘', 'b': '♗', 'q': '♕', 'k': '♔' },
+        'b': { 'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚' }
+    };
+
+    function botPlay() {
+        const moves = game.moves();
+        if (game.game_over()) {
+            statusElement.innerText = "Oyun Bitti!";
+            return;
+        }
+        
+        const move = moves[Math.floor(Math.random() * moves.length)];
+        game.move(move);
+        draw();
+        statusElement.innerText = "Senin Sıran";
+        pgnElement.innerText = game.pgn();
+    }
+
+    function draw() {
+        boardElement.innerHTML = '';
+        game.board().forEach((row, r) => {
+            row.forEach((p, c) => {
+                const name = String.fromCharCode(97 + c) + (8 - r);
+                const sq = document.createElement('div');
+                sq.className = `square ${(r+c)%2===0?'white-sq':'black-sq'}`;
+                
+                if (selectedSquare === name) sq.classList.add('selected');
+                
+                if (possibleMoves.includes(name)) {
+                    const dot = document.createElement('div');
+                    dot.className = 'dot';
+                    sq.appendChild(dot);
+                }
+
+                if (p) {
+                    const span = document.createElement('span');
+                    span.className = 'piece';
+                    span.innerText = pieceIcons[p.color][p.type];
+                    span.style.color = p.color === 'w' ? "#fff" : "#000";
+                    span.style.textShadow = p.color === 'b' ? "0 0 2px #fff" : "0 0 2px #000";
+                    sq.appendChild(span);
+                }
+
+                sq.onclick = () => {
+                    if (selectedSquare === null) {
+                        const piece = game.get(name);
+                        if (piece && piece.color === 'w') {
+                            selectedSquare = name;
+                            possibleMoves = game.moves({ square: name, verbose: true }).map(m => m.to);
+                            draw();
+                        }
+                    } else {
+                        const move = game.move({ from: selectedSquare, to: name, promotion: 'q' });
+                        selectedSquare = null;
+                        possibleMoves = [];
+                        if (move) {
+                            draw();
+                            statusElement.innerText = "TÜYK Düşünüyor...";
+                            pgnElement.innerText = game.pgn();
+                            setTimeout(botPlay, 600);
+                        } else {
+                            const piece = game.get(name);
+                            if (piece && piece.color === 'w') {
+                                selectedSquare = name;
+                                possibleMoves = game.moves({ square: name, verbose: true }).map(m => m.to);
+                            }
+                            draw();
+                        }
+                    }
+                };
+                boardElement.appendChild(sq);
+            });
+        });
+    }
+    draw();
+</script>
+</body>
+</html>
